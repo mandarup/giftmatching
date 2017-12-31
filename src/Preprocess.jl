@@ -4,14 +4,8 @@ using DataStructures
 using DataFrames
 using MLDataUtils
 using CSV
-using JuMP
 using JLD
 
-include("AssignmentModel.jl")
-include("Utils.jl")
-
-# import AssignmentModel
-# import SantaUtils
 
 
 
@@ -78,58 +72,13 @@ for c in range(0,N_CHILDREN-1)
     end
 end
 
-jldopen( PROCESSED_DATA_PATH, "w") do file
+
+jldopen( joinpath(pwd(), "data/working/data.jld"), "w") do file
     write(file, "child_pref", child_pref)  # alternatively, say "@write file A"
     write(file, "gift_pref", gift_pref)
-    write(file, "gift_happiness", gift_happiness)
-    write(file, "child_happiness", child_happiness)
 end
 
 jldopen( joinpath(pwd(), "data/working/processed.jld"), "w") do file
     write(file, "gift_happiness", gift_happiness)
     write(file, "child_happiness", child_happiness)
-end
-
-
-gift_happiness = jldopen(joinpath(pwd(), "data/working/processed.jld", "r") do file
-    read(file, "gift_happiness")
-end
-
-child_happiness = jldopen(joinpath(pwd(), "data/working/processed.jld", "r") do file
-    read(file, "child_happiness")
-end
-
-
-GIFT_IDS = np.array([[g] * N_GIFT_QUANTITY for g in range(N_GIFT_TYPE)]).flatten()
-
-
-function avg_normalized_happiness2(output, child_pref, gift_pref)
-    gift_assignment = Dict(zip(output[:,1] , output[:,2]))
-    gift_counts = Dict(v=>0 for (k,v) in gift_assignment )
-    tic()
-    for (kid, gift) in gift_assignment
-        gift_counts[gift] += 1
-        if gift_counts[gift] > N_GIFT_QUANTITY
-            throw(AssertionError("quantity for $gift==$(gift_counts[gift]) >=$N_GIFT_QUANTITY"))
-        end
-    end
-    println("couting gifts ",toc())
-    println("checking feasibility: ", check_feas(output))
-
-    max_child_happiness = N_GIFT_PREF * RATIO_CHILD_HAPPINESS
-    max_gift_happiness = N_CHILD_PREF * RATIO_GIFT_HAPPINESS
-
-    total_child_happiness = 0
-    total_gift_happiness = zeros(N_GIFT_TYPE)
-
-    tic()
-    for (c, g) in gift_assignment
-        total_child_happiness +=  CHILD_HAPPINESS[c][g]
-        total_gift_happiness[g] += GIFT_HAPPINESS[g][c]
-    end
-    nch = total_child_happiness / N_CHILDREN
-    ngh = mean(total_gift_happiness) / N_GIFT_TYPE
-    print('normalized child happiness', nch)
-    print('normalized gift happiness', ngh)
-    return nch + ngh
 end
