@@ -171,7 +171,7 @@ function heuristic_dumb()
     child_id::Int = 0
     gift_id::Int = 0
     gift_count = fill!(Array{Int}(N_GIFT_TYPE),N_GIFT_QUANTITY)
-    println(gift_count)
+    # println(gift_count)
 
     #gift_flag = fill!(Array{Int}(N_GIFT_QUANTITY),0)
     # check if triplets have the same gift
@@ -249,7 +249,6 @@ function heuristic_dumb()
     for i in 1:size(output)[1]
         if output[i,2] >= 0
             gift_count_test[output[i,2]+1] -=1
-
         else
             throw(output[i,:])
         end
@@ -272,10 +271,12 @@ end
 
 
 function get_next_greedy_pref(gift_count, child_id; child_type=1)
-    preferred_gifts = gift_pref[child_id + 1:child_id + 1 + child_type, :]
+    preferred_gifts = gift_pref[child_id + 1:child_id + child_type, :]
     # println(preferred_gifts)
-    println(size(preferred_gifts))
+    # println(size(preferred_gifts))
     gift_id = nothing
+
+    # first go over 1st prefs of each kid, then second .. so on
     for k in 1:size(preferred_gifts)[1]
         for g in 1:size(preferred_gifts)[2]
             next_gift_id = preferred_gifts[k,g]
@@ -291,47 +292,57 @@ function get_next_greedy_pref(gift_count, child_id; child_type=1)
     end
     # if no greedy gift found then assign first available gift
     if gift_id == nothing
-        gift_id = find(x -> x >= child_type, gift_count)[1]
+        gift_id = find(x -> x >= child_type, gift_count)[1]-1
     end
     return gift_id
 end
 #
 # child_id = 0
-# child_type = 3
-# gift_count = fill!(Array{Int}(N_GIFT_QUANTITY),N_GIFT_QUANTITY)
-# get_next_greedy_pref(gift_count, 0, child_type=3)
+child_type = 2
+gift_count = fill!(Array{Int}(N_GIFT_QUANTITY),N_GIFT_QUANTITY)
+gift_id = find(x -> x >= child_type, gift_count)[1]
+# get_next_greedy_pref(gift_count, 49000, child_type=1)
 # gift_pref
 #
-# gift_pref[child_id + 1:child_id + 1 + child_type, 1]
+# gift_pref[child_id + 1:child_id +  child_type, :]
 # gift_pref[child_id + 1:child_id+child_type, :]
 
 
 function heuristic_greedy1()
-    output = Array{Int}((N_CHILDREN,2))
+    output = Array{Int}(N_CHILDREN,2)
+    output[:,1] = 0:N_CHILDREN-1
+    output[:,2] = -1
 
-    child_id = 0
-    gift_id = 0
-    gift_count = fill!(Array{Int}(N_GIFT_QUANTITY),N_GIFT_QUANTITY)
+    child_id::Int = 0
+    gift_id::Int = 0
+    gift_count = fill!(Array{Int}(N_GIFT_TYPE),N_GIFT_QUANTITY)
+    # println(gift_count)
+
     #gift_flag = fill!(Array{Int}(N_GIFT_QUANTITY),0)
     # check if triplets have the same gift
     for t in TRIPLETS_INDEX #colon(0,3, TRIPLETS-1)
         # @show convert(Int,t1)
         child_id = convert(Int,t)
-
         gift_id = get_next_greedy_pref(gift_count, child_id, child_type=3)
         for i in 1:3
             output[child_id + i, 2] = gift_id
             gift_count[gift_id+1] -= 1
-            @show child_id + i, output[child_id + i, 2], gift_count[gift_id+1]
+            # @show child_id, output[child_id + i, 2], gift_id, gift_count[gift_id+1]
         end
-        gift_id = get_next_greedy_pref(gift_count, child_id, child_type=3)
+        # if gift_count[gift_id+1] < 3
+        #     gift_id += 1
+        # end
     end
+    #println(output[1:child_id,:])
+    # println("=> $child_id")
+    #println(output[1:child_id,:])
+    # println(gift_count)
+    # println(output[1:5000,:])
 
-    # gift_id = 0
-    # while gift_count[gift_id+1] < 2
-    #     gift_id += 1
-    # end
-    #
+    gift_id = 0
+    while gift_count[gift_id+1] < 2
+        gift_id += 1
+    end
 
     for t in TWINS_INDEX
         # @show convert(Int,t1)
@@ -341,25 +352,30 @@ function heuristic_greedy1()
             output[child_id + i, 2] = gift_id
             gift_count[gift_id+1] -= 1
         end
-        if gift_count[gift_id+1] < 2
-            gift_id += 1
-        end
+
     end
 
-    gift_id = 0
-    while gift_count[gift_id+1] <= 0
-        gift_id += 1
-    end
-
-    for t in TRIPLETS + TWINS + 1: N_CHILDREN
-        # @show convert(Int,t1)
+    for t in SINGLE_INDEX# TRIPLETS + TWINS + 1: N_CHILDREN -1
         child_id = convert(Int,t)
-        output[child_id + i, 2] = gift_id
+        gift_id = get_next_greedy_pref(gift_count, child_id, child_type=1)
+        output[child_id + 1, 2] = gift_id
         gift_count[gift_id+1] -= 1
-        while gift_count[gift_id+1] <= 0
-            gift_id += 1
+
+        # while (gift_id < N_GIFT_QUANTITY-1) & (gift_count[gift_id+1] <= 0)
+        #     gift_id += 1
+        # end
+    end
+
+    gift_count_test = fill!(Array{Int}(N_GIFT_TYPE),N_GIFT_QUANTITY)
+    for i in 1:size(output)[1]
+        if output[i,2] >= 0
+            gift_count_test[output[i,2]+1] -=1
+        else
+            throw(output[i,:])
         end
     end
+    println(gift_count_test)
+
     return output
 end
 
@@ -370,4 +386,10 @@ output = heuristic_dumb()
 # println(output)
 check_feas(output)
 score = avg_normalized_happiness(output, child_pref, gift_pref)
-println("normalized score $score")
+println("normalized score dumb heuristic: $score")
+
+output = heuristic_greedy1()
+# println(output)
+check_feas(output)
+score = avg_normalized_happiness(output, child_pref, gift_pref)
+println("normalized score greedy heuristic: $score")
