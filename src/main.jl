@@ -8,14 +8,19 @@ using JLD
 using ProgressMeter
 using PyPlot
 
-
-include("src/Constants.jl")
+include("Constants.jl")
+# include("src/Constants.jl")
 using Constants
 
-include("src/AssignmentModel.jl")
-include("src/Utils.jl")
-include("src/Heuristics.jl")
-include("src/Preprocess.jl")
+# include("src/AssignmentModel.jl")
+# include("src/Utils.jl")
+# include("src/Heuristics.jl")
+# include("src/Preprocess.jl")
+
+include("AssignmentModel.jl")
+include("Utils.jl")
+include("Heuristics.jl")
+include("Preprocess.jl")
 
 using AssignmentModel
 using Utils
@@ -75,7 +80,7 @@ function optimize_block(solution_block)
 end
 
 
-function optimize(kids, gifts; triplets=[], twins=[])
+function optimize(kids, gifts, child_happiness, gift_happiness; triplets=[], twins=[])
 
     block_size = length(kids)
     C = zeros((block_size, block_size))
@@ -96,6 +101,8 @@ function optimize(kids, gifts; triplets=[], twins=[])
 
     assignment = AssignmentModel.solve_model(C, gifts; triplets=triplets, twins=twins)
 
+    # sum(assignment .* C)
+
     c, g = findn(assignment .== 1)
 
     opt_kids, opt_gifts = kids[c], gifts[g]
@@ -104,7 +111,7 @@ end
 
 
 
-function compute_happiness(sol)
+function compute_happiness(sol, child_happiness, gift_happiness)
     gift_assignment = Dict(zip(sol[:,1] , sol[:,2]))
     gift_counts = Dict(v=>0 for (k,v) in gift_assignment )
     tic()
@@ -121,13 +128,14 @@ function compute_happiness(sol)
 
     total_child_happiness = 0
     total_gift_happiness = 0 #zeros(N_GIFT_TYPE)
+    # total_gift_happiness = zeros(N_GIFT_TYPE)
 
     for (c, g) in gift_assignment
         total_child_happiness +=  child_happiness[c][g]
         total_gift_happiness += gift_happiness[g][c]
     end
     nch = total_child_happiness / (N_CHILDREN * max_child_happiness)
-    ngh = total_gift_happiness / (N_GIFT_TYPE * max_gift_happiness)
+    ngh = total_gift_happiness / (N_GIFT_QUANTITY * N_GIFT_TYPE * max_gift_happiness)
     println("normalized happiness child: $nch, gift: $ngh" )
 
     avg_happiness = nch ^3 + ngh ^3
@@ -187,7 +195,7 @@ end
 
 
 
-function run_opt(init; history=[], n_rounds=10, sample_size=100)
+function run_opt(init, child_happiness, gift_happiness; history=[], n_rounds=10, sample_size=10)
     sol= copy(init)
 
     @showprogress 1 for i in 1:n_rounds
@@ -209,49 +217,71 @@ function run_opt(init; history=[], n_rounds=10, sample_size=100)
         # info("optimizing")
         tic()
         # kids, gifts = optimize_block(solution_block)
-        kids, gifts = optimize(current_kids, current_gifts; triplets=triplets, twins=twins)
-        # println("optimization time :", toc())
+        try
+            kids, gifts = optimize(current_kids, current_gifts, child_happiness, gift_happiness; triplets=triplets, twins=twins)
+            # println("optimization time :", toc())
 
-        sol_copy = copy(sol)
-        sol_copy[kids+1,2] = gifts
-        if Utils.check_feas(sol_copy) == true
-            sol =  sol_copy
-        else
-            info("new solution infeasible")
+            sol_copy = copy(sol)
+            sol_copy[kids+1,2] = gifts
+            if Utils.check_feas(sol_copy) == true
+                sol =  sol_copy
+            else
+                info("new solution infeasible")
+            end
+        catch e
+            @show e
         end
+        compute_happiness(sol, child_happiness, gift_happiness)
     end
     return sol
 end
 
 
-history = fill!(Array{Float64}(1),0)
-sol = Heuristics.heuristic_greedy(gift_pref)
-Utils.check_feas(sol)
-happiness = compute_happiness(sol)
-append!(history, happiness)
 
-for i=1:10
-    sol = run_opt(sol; history=history, n_rounds=1000, sample_size=20)
-    happiness = compute_happiness(sol)
+function main()
+    gift_pref, child_pref, gift_happiness, child_happiness = Preprocess.load_data()
+
+    history = fill!(Array{Float64}(1),0)
+    sol = Heuristics.heuristic_greedy(gift_pref)
+    Utils.check_feas(sol)
+    happiness = compute_happiness(sol, child_happiness, gift_happiness)
     append!(history, happiness)
-    println("happiness $(history[end-1]) -> $(history[end])")
-    println("happiness gain: $(history[end] - history[end-1])")
+
+    for i=1:100
+        sol = run_opt(sol, child_happiness, gift_happiness; history=history, n_rounds=10, sample_size=30)
+        happiness = compute_happiness(sol, child_happiness, gift_happiness)
+        append!(history, happiness)
+        println("happiness $(history[end-1]) -> $(history[end])")
+        println("happiness gain: $(history[end] - history[end-1])")
+
+        if happiness[end] < happiness[end-1]
+            break
+        end
+        output = convert(DataFrame, sol)
+        names!(output, [:ChildId, :GiftId])
+        CSV.write(joinpath(pwd(),"data/output/sub_$(round(history[end],2)).csv"),output)
+    end
 end
 
 
-plot(history)
+
+main()
+
+
+# Utils.avg_normalized_happiness(sol, child_pref, gift_pref)
+# plot(history)
 
 # write solution
-output = convert(DataFrame, sol)
-names!(output, [:ChildId, :GiftId])
-CSV.write(joinpath(pwd(),"data/output/sub_$(history[end]).csv"),output)
+# output = convert(DataFrame, sol)
+# names!(output, [:ChildId, :GiftId])
+# CSV.write(joinpath(pwd(),"data/output/sub_$(round(history[end],2)).csv"),output)
 
 
 
-# load initial solution
+## load initial solution
 # Utils.avg_normalized_happiness(sol, child_pref, gift_pref)
-init_df = CSV.read(joinpath(pwd(),"data/output/cpp_sub.csv"), header=true, nullable=false)
-init = convert(Array, init_df[2:end, :])
-
-sol = copy(init)
-Utils.check_feas(sol)
+# init_df = CSV.read(joinpath(pwd(),"data/output/cpp_sub.csv"), header=true, nullable=false)
+# init = convert(Array, init_df[2:end, :])
+#
+# sol = copy(init)
+# Utils.check_feas(sol)
