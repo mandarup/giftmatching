@@ -17,6 +17,9 @@ const TRIPLETS = ceil(0.005 * N_CHILDREN / 3.) * 3    # 0.5% of all population, 
 const RATIO_GIFT_HAPPINESS = 2
 const RATIO_CHILD_HAPPINESS = 2
 
+const MAX_CHILD_HAPPINESS = N_GIFT_PREF * RATIO_CHILD_HAPPINESS
+const MAX_GIFT_HAPPINESS = N_CHILD_PREF * RATIO_GIFT_HAPPINESS
+
 
 
 # index of first members of twins and triplets
