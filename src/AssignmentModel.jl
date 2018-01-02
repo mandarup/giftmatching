@@ -62,7 +62,7 @@ function solve_model(
         cost::Array{Float64,2}, gifts::Array{Int64,1};
         triplets::Array{Any,1}=[], twins::Array{Any,1}=[])
 
-    solver = CbcSolver(TimeLimit=5)
+    solver = CbcSolver(sec=30)
     m = Model(solver=solver)
     dim = size(cost)[1]
 
@@ -90,7 +90,7 @@ function solve_model(
         end
     end
 
-    @objective(m, Min, -sum(cost[i,j] * x[i,j] for i=1:dim, j=1:dim))
+    @objective(m, Min,  -sum(cost[i,j] * x[i,j] for i=1:dim, j=1:dim))
 
     # Solve it
     status = solve(m)
@@ -111,6 +111,7 @@ function solve_model(
                 return nothing
             end
         end
+        # println(m)
         return sol
     end
 
