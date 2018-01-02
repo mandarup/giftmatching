@@ -1,7 +1,36 @@
 
 module Utils
 
-export make_dummy_output, check_feas, avg_normalized_happiness
+using CSV
+
+include("Constants.jl")
+using Constants
+
+export make_dummy_output, check_feas, avg_normalized_happiness, load_data
+
+
+
+function load_data()
+    gift_pref_df = CSV.read(joinpath(pwd(),WISHLIST_FILE), header=false, nullable=false)
+    child_pref_df = CSV.read(joinpath(pwd(),GOODKIDS_FILE), header=false, nullable=false)
+
+    # head(gift_pref_df)
+    # head(child_pref_df)
+
+
+
+    gift_pref = convert(Array, gift_pref_df[:, 2:end])
+    child_pref = convert(Array, child_pref_df[:, 2:end])
+    # size(child_pref)
+    # size(gift_pref)
+
+
+    clear!(:gift_pref_df)
+    clear!(:child_pref_df)
+
+    return gift_pref, child_pref
+end
+
 
 function make_dummy_output()
     output = Array{Int}((N_CHILDREN,2))

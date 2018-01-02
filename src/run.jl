@@ -7,8 +7,10 @@ using CSV
 using JuMP
 using JLD
 
-include("AssignmentModel.jl")
-include("Utils.jl")
+
+
+include("src/AssignmentModel.jl")
+include("src/Utils.jl")
 
 # import AssignmentModel
 # import SantaUtils
@@ -41,13 +43,13 @@ const PROCESSED_DATA_FILE = "data/working/data.jld"
 const PROCESSED_DATA_PATH = joinpath(pwd(),PROCESSED_DATA_FILE)
 
 
+addprocs(7)
 
 gift_pref_df = CSV.read(joinpath(pwd(),WISHLIST_FILE), header=false, nullable=false)
-
 child_pref_df= CSV.read(joinpath(pwd(),GOODKIDS_FILE), header=false, nullable=false)
 
-head(gift_pref_df)
-head(child_pref_df)
+#DataFrames.head(gift_pref_df)
+#head(child_pref_df)
 
 gift_pref = convert(Array, gift_pref_df[:, 2:end])
 child_pref = convert(Array, child_pref_df[:, 2:end])
@@ -78,31 +80,34 @@ for c in range(0,N_CHILDREN-1)
     end
 end
 
-jldopen( PROCESSED_DATA_PATH, "w") do file
-    write(file, "child_pref", child_pref)  # alternatively, say "@write file A"
-    write(file, "gift_pref", gift_pref)
-    write(file, "gift_happiness", gift_happiness)
-    write(file, "child_happiness", child_happiness)
-end
+# jldopen( PROCESSED_DATA_PATH, "w") do file
+#     write(file, "child_pref", child_pref)  # alternatively, say "@write file A"
+#     write(file, "gift_pref", gift_pref)
+#     write(file, "gift_happiness", gift_happiness)
+#     write(file, "child_happiness", child_happiness)
+# end
 
 jldopen( joinpath(pwd(), "data/working/processed.jld"), "w") do file
     write(file, "gift_happiness", gift_happiness)
+end
+
+jldopen( joinpath(pwd(), "data/working/processed.jld"), "w") do file
     write(file, "child_happiness", child_happiness)
 end
 
+# sgift_happiness = jldopen(joinpath(pwd(), "data/working/processed.jld", "r") do file
+#     read(file, "gift_happiness")
+# end
+#
+# child_happiness = jldopen(joinpath(pwd(), "data/working/processed.jld", "r") do file
+#     read(file, "child_happiness")
+# end
 
-gift_happiness = jldopen(joinpath(pwd(), "data/working/processed.jld", "r") do file
-    read(file, "gift_happiness")
-end
-
-child_happiness = jldopen(joinpath(pwd(), "data/working/processed.jld", "r") do file
-    read(file, "child_happiness")
-end
-
-
-GIFT_IDS = np.array([[g] * N_GIFT_QUANTITY for g in range(N_GIFT_TYPE)]).flatten()
-
-
+#
+#
+# GIFT_IDS = np.array([[g] * N_GIFT_QUANTITY for g in range(N_GIFT_TYPE)]).flatten()
+#
+#
 function avg_normalized_happiness2(output, child_pref, gift_pref)
     gift_assignment = Dict(zip(output[:,1] , output[:,2]))
     gift_counts = Dict(v=>0 for (k,v) in gift_assignment )

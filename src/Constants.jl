@@ -1,6 +1,12 @@
 module Constants
 
 
+export N_CHILDREN, N_GIFT_TYPE, N_GIFT_QUANTITY, N_GIFT_PREF, N_CHILD_PREF
+export TWINS, TRIPLETS, TRIPLETS, RATIO_GIFT_HAPPINESS, RATIO_CHILD_HAPPINESS
+export TRIPLETS_INDEX, TWINS_INDEX, TWINS_RANGE, SINGLE_INDEX
+export WISHLIST_FILE, GOODKIDS_FILE, PROCESSED_DATA_FILE
+
+
 const N_CHILDREN = 1000000 # n children to give
 const N_GIFT_TYPE = 1000 # n types of gifts available
 const N_GIFT_QUANTITY = 1000 # each type of gifts are limited to this quantity
@@ -10,6 +16,8 @@ const TWINS = ceil(0.04 * N_CHILDREN / 2.) * 2    # 4% of all population, rounde
 const TRIPLETS = ceil(0.005 * N_CHILDREN / 3.) * 3    # 0.5% of all population, rounded to the closest number
 const RATIO_GIFT_HAPPINESS = 2
 const RATIO_CHILD_HAPPINESS = 2
+
+
 
 # index of first members of twins and triplets
 const TRIPLETS_INDEX = colon(0,3, TRIPLETS-1)
