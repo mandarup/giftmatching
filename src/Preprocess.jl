@@ -91,11 +91,11 @@ function get_child_happiness(gift_pref::Array)
 end
 
 
-function load_happiness()
+function load_data()
     gift_pref, child_pref = Utils.load_data()
     gift_happiness = get_gift_happiness(child_pref)
     child_happiness = get_child_happiness(gift_pref)
-    return gift_happiness, child_happiness
+    return gift_pref, child_pref, gift_happiness, child_happiness
 end
 
 
