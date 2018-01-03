@@ -5,6 +5,7 @@ using MLDataUtils
 using CSV
 using JuMP
 using JLD
+# using ProgressMeter
 using ProgressMeter
 using PyPlot
 
@@ -12,6 +13,7 @@ include("Constants.jl")
 # include("src/Constants.jl")
 using Constants
 
+#
 # include("src/AssignmentModel.jl")
 # include("src/Utils.jl")
 # include("src/Heuristics.jl")
@@ -28,8 +30,8 @@ using Heuristics
 using Preprocess
 
 
-BLOCK_SIZE = 100
-N_ROUNDS = 50
+# BLOCK_SIZE = 100
+# N_ROUNDS = 50
 
 
 # gift_happiness, child_happiness = Preprocess.load_happiness()
@@ -134,12 +136,22 @@ function compute_happiness(sol, child_happiness, gift_happiness)
         total_child_happiness +=  child_happiness[c][g]
         total_gift_happiness += gift_happiness[g][c]
     end
-    nch = total_child_happiness / (N_CHILDREN * max_child_happiness)
-    ngh = total_gift_happiness / (N_GIFT_QUANTITY * N_GIFT_TYPE * max_gift_happiness)
+
+    # total_child_happiness = @parallel (+) for (c, g) in gift_assignment
+    #     child_happiness[c][g]
+    # end
+    # total_gift_happiness = @parallel (+) for (c, g) in gift_assignment
+    #     gift_happiness[g][c]
+    # end
+
+
+    nch = total_child_happiness / (N_CHILDREN )
+    ngh = total_gift_happiness / (N_GIFT_QUANTITY * N_GIFT_TYPE )
     println("normalized happiness child: $nch, gift: $ngh" )
 
     avg_happiness = nch ^3 + ngh ^3
-    println("happiness: $avg_happiness")
+    println("happiness: $avg_happiness  ($(toc()))")
+
     return avg_happiness
 end
 
@@ -194,11 +206,58 @@ end
 
 
 
-
-function run_opt(init, child_happiness, gift_happiness; history=[], n_rounds=10, sample_size=10)
+function run_opt(init, child_happiness, gift_happiness; history=[], n_rounds=10, sample_size=100)
     sol= copy(init)
 
     @showprogress 1 for i in 1:n_rounds
+        # info("round $i")
+
+        # slice_kids = rand(1:N_CHILDREN,BLOCK_SIZE)
+        # slice_kids, triplets, twins = get_feasible_slice()
+        slice_kids = get_feasible_slice(sample_size=sample_size)
+        triplets = get_triplet_index(slice_kids)
+        twins = get_twin_index(slice_kids)
+        # @show twins
+        # @show triplets
+
+        solution_block = sol[slice_kids+1, :]
+        current_kids = solution_block[:,1]
+        current_gifts = solution_block[:,2]
+
+        # info("optimizing")
+        tic()
+        # kids, gifts = optimize_block(solution_block)
+        try
+            kids, gifts = optimize(current_kids, current_gifts, child_happiness, gift_happiness; triplets=triplets, twins=twins)
+            # println("optimization time :", toc())
+
+            sol_copy = copy(sol)
+            sol_copy[kids+1,2] = gifts
+            if Utils.check_feas(sol_copy) == true
+                # sol =  sol_copy
+                sol[kids+1,2] = gifts
+            else
+                info("new solution infeasible")
+            end
+        catch e
+            @show e
+        end
+        # compute_happiness(sol, child_happiness, gift_happiness)
+    end
+    return sol
+end
+
+
+
+
+function run_opt_parallel(init, child_happiness, gift_happiness; history=[], n_rounds=10, sample_size=100)
+    # sol= copy(init)
+
+    sol = SharedArray{Int64}((N_CHILDREN,2), init=0)
+    sol[:,:] = init[:,:]
+
+
+    @parallel for i in 1:n_rounds
         # info("round $i")
 
         # slice_kids = rand(1:N_CHILDREN,BLOCK_SIZE)
@@ -224,47 +283,74 @@ function run_opt(init, child_happiness, gift_happiness; history=[], n_rounds=10,
             sol_copy = copy(sol)
             sol_copy[kids+1,2] = gifts
             if Utils.check_feas(sol_copy) == true
-                sol =  sol_copy
+                sol[kids+1,2] = gifts
             else
                 info("new solution infeasible")
             end
         catch e
             @show e
         end
-        compute_happiness(sol, child_happiness, gift_happiness)
+
+        # compute_happiness(sol, child_happiness, gift_happiness)
     end
     return sol
 end
 
 
 
-function main()
+
+function main(;init=nothing)
+    sample_size = 10
+    sample_size_step = 5
+
     gift_pref, child_pref, gift_happiness, child_happiness = Preprocess.load_data()
 
     history = fill!(Array{Float64}(1),0)
-    sol = Heuristics.heuristic_greedy(gift_pref)
-    Utils.check_feas(sol)
+
+    init = "csv"
+    if init == "heuristic"
+        sol = Heuristics.heuristic_greedy(gift_pref)
+    elseif init == "csv"
+        init_sol = CSV.read(joinpath(pwd(),"data/output/sub_0.73.csv"), nullable=false)
+        sol = convert(Array, init_sol)
+    end
+
+
+    if Utils.check_feas(sol) != true
+        throw("Heuristic solution infeasible")
+    end
+
+
     happiness = compute_happiness(sol, child_happiness, gift_happiness)
     append!(history, happiness)
 
-    for i=1:100
-        sol = run_opt(sol, child_happiness, gift_happiness; history=history, n_rounds=10, sample_size=30)
+    # addprocs(4)
+    for i=1:1000
+        sol = run_opt(sol, child_happiness, gift_happiness; history=history, n_rounds=1000, sample_size=sample_size)
+        # sol = run_opt_parallel(sol, child_happiness, gift_happiness; history=history, n_rounds=1000, sample_size=20)
+
         happiness = compute_happiness(sol, child_happiness, gift_happiness)
         append!(history, happiness)
         println("happiness $(history[end-1]) -> $(history[end])")
-        println("happiness gain: $(history[end] - history[end-1])")
 
-        if happiness[end] < happiness[end-1]
-            break
+        happiness_gain = (history[end] - history[end-1])
+        println("happiness gain: $happiness_gain")
+
+        if happiness_gain < 1e-6
+            if happiness_gain < 0
+                warn("happiness decreased")
+            end
+            sample_size += sample_size_step
+            warn("happiness gain insignificant, increasing sample size from to $sample_size")
         end
         output = convert(DataFrame, sol)
         names!(output, [:ChildId, :GiftId])
-        CSV.write(joinpath(pwd(),"data/output/sub_$(round(history[end],2)).csv"),output)
+        CSV.write(joinpath(pwd(),"data/output/sub_$(round(history[end],4)).csv"),output)
     end
 end
 
 
-
+addprocs(6)
 main()
 
 
@@ -277,6 +363,10 @@ main()
 # CSV.write(joinpath(pwd(),"data/output/sub_$(round(history[end],2)).csv"),output)
 
 
+
+
+
+# /Users/mupadhye/git/mandarup/giftmatching/data/output/sub_0.73.csv
 
 ## load initial solution
 # Utils.avg_normalized_happiness(sol, child_pref, gift_pref)
