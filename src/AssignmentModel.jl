@@ -3,7 +3,7 @@ module AssignmentModel
 
 using JuMP
 using Cbc
-
+using Clp
 
 
 export solve_model
@@ -53,6 +53,10 @@ function solve_model_legacy(cost)
 end
 
 """
+Note:
+    Solver selection: use LP solver if only singles, but use MIP solver
+        if twins or triplets involved.
+
 Args:
     triplets (Array{Int64,1}) : has only first child id of each triplet group
     twins (Array{Int64,1}) : has only first child id of each twins group
@@ -62,7 +66,14 @@ function solve_model(
         cost::Array{Float64,2}, gifts::Array{Int64,1};
         triplets::Array{Any,1}=[], twins::Array{Any,1}=[])
 
-    solver = CbcSolver(sec=30)
+
+    if (length(triplets) <=0 ) & (length(twins) <= 0)
+        solver = ClpSolver()
+    else
+        solver = CbcSolver(sec=30)
+    end
+    
+    # solver = ClpSolver()
     m = Model(solver=solver)
     dim = size(cost)[1]
 
@@ -89,6 +100,10 @@ function solve_model(
             @constraint(m,  sum(x[i=t,j] * gifts[j] for j=1:dim) == sum(x[i=t+1, j] * gifts[j] for j=1:dim) )
         end
     end
+
+
+    # for i in 1:dim, j in 1:dim
+    #     @constraint(m,  sum(x[i,:]) -  for j=1:dim) )
 
     @objective(m, Min,  -sum(cost[i,j] * x[i,j] for i=1:dim, j=1:dim))
 
