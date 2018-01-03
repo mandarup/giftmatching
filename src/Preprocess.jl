@@ -68,10 +68,10 @@ function get_gift_happiness(child_pref::Array)
     info("processing gift happiness")
     gift_happiness = Dict()
     for g in 0:N_GIFT_TYPE-1
-        gift_happiness[g] = DefaultDict( -1. )
+        gift_happiness[g] = DefaultDict( -1. /MAX_GIFT_HAPPINESS)
         for (i, c) in enumerate(child_pref[g+1,:])
             #@show N_CHILD_PREF, - i, - 1, 2. * (N_CHILD_PREF - i - 1)
-            gift_happiness[g][c] = 2. * (N_CHILD_PREF - i + 1)
+            gift_happiness[g][c] = 2. * (N_CHILD_PREF - i + 1) /MAX_GIFT_HAPPINESS
         end
     end
     return gift_happiness
@@ -82,9 +82,9 @@ function get_child_happiness(gift_pref::Array)
     info("processing child happiness")
     child_happiness = Dict()
     for c in 0:N_CHILDREN-1
-        child_happiness[c] = DefaultDict(-1.)
+        child_happiness[c] = DefaultDict(-1./MAX_CHILD_HAPPINESS)
         for (i, g) in enumerate(gift_pref[c+1,:])
-            child_happiness[c][g] = 2. * (N_GIFT_PREF - i + 1)
+            child_happiness[c][g] = 2. * (N_GIFT_PREF - i + 1) /MAX_CHILD_HAPPINESS
         end
     end
     return child_happiness
