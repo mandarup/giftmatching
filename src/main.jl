@@ -309,6 +309,24 @@ function get_feasible_slice_v3(sol;n_kids=5, n_gifts=2)
     return  convert(Array{Int64,1},sample_kids)
 end
 
+function get_first_child_based_index(child_ids)
+    single_ids = intersect(child_ids, SINGLE_INDEX)
+    triplet_ids = intersect(child_ids, TRIPLETS_INDEX)
+    twin_ids = intersect(child_ids, TWINS_INDEX)
+    sample_kids = [triplet_ids; twin_ids; single_ids]
+
+    for i in triplet_ids
+        index = findfirst(sample_kids, i)
+        splice!(sample_kids, index, i:i+2)
+    end
+    for i in twin_ids
+        index = findfirst(sample_kids, i)
+        splice!(sample_kids, index, i:i+1)
+    end
+
+    return  convert(Array{Int64,1},sample_kids)
+end
+
 function get_feasible_slice_singles(sol;n_kids=5)
 
     sample_gifts = choose_gifts(sample_size=n_kids)
@@ -393,7 +411,10 @@ function run_opt(init, child_happiness, gift_happiness,
     # sample_kids = get_feasible_slice_singles(sol;n_kids=n_kids*single_multiplier)
 
     sample_kids = sample_mixed(sol,current_happiness, n_kids=n_kids * single_multiplier, threshold_cutoff=threshold_cutoff)
+    # sample_kids =  get_feasible_slice_v1(sol, sample_size=n_kids)
+    # sample_kids = unique(sample_kids)
 
+    println("sample size : $(length(sample_kids))")
     triplets = get_triplet_index(sample_kids)
     twins = get_twin_index(sample_kids)
     # @show twins
@@ -446,6 +467,8 @@ function run_opt(init, child_happiness, gift_happiness,
                 info("new solution infeasible")
                 no_improvement += 1
             end
+        elseif new_avg_happiness < current_avg_happiness
+            error("(new_avg_happiness) $new_avg_happiness < $current_avg_happiness (current_avg_happiness)")
         end
     catch e
         @show e
@@ -513,19 +536,20 @@ function main(;init="heuristic")
     sample_size_step = 5
     non_improving_rounds = 0
 
-
-    n_kids = 50
+    n_kids = 1000
     n_gifts = 3
     single_multiplier=10
     singles_only_mode = true
-    threshold_cutoff = .5
+    threshold_cutoff = .65
+    max_n_kids = 100
 
     gift_pref, child_pref, gift_happiness, child_happiness = Preprocess.load_data()
 
     history = fill!(Array{Float64}(1),0)
     init = "csv"
     # init_file = "data/output/sub_0.73.csv"
-    init_file = "data/output/sub_0.8923240047294622.csv"
+    # init_file = "data/output/sub_0.8923537718926202.csv"
+    init_file = "data/output/sub_0.934960657680.csv"
     if init == "heuristic"
         sol = Heuristics.heuristic_greedy(gift_pref)
     elseif init == "csv"
@@ -578,22 +602,23 @@ function main(;init="heuristic")
         # println("happiness gain: $happiness_gain")
         info("happiness $(history[end-1]) -> $(history[end]) [$happiness_gain]")
 
-
-
         if happiness_gain <= 0.
             non_improving_rounds += 1
+
             info("happiness did not improve, consecutive non improving rounds = $non_improving_rounds")
             if (non_improving_rounds % 3 == 0) & (non_improving_rounds > 1)
                 # non_improving_rounds = 0
                 # n_gifts += 1
                 warn("happiness did not improve for $non_improving_rounds consecutive rounds, updating params")
-                threshold_cutoff += .05
+                threshold_cutoff += .03
+                threshold_cutoff = min(round(threshold_cutoff,2), 1)
                 warn("increasing threshold_cutoff to $threshold_cutoff")
 
-                if (non_improving_rounds % (3*3) == 0)
-                    n_kids += sample_size_step
-                    warn("increasing params: n_kids = $n_kids, n_gifts=$n_gifts")
-                end
+                # if (non_improving_rounds % (3*3) == 0)
+                #     n_kids += sample_size_step
+                #     n_kids = min(n_kids, max_n_kids)
+                #     warn("increasing params: n_kids = $n_kids, n_gifts=$n_gifts")
+                # end
 
             end
             if happiness_gain < 0
@@ -607,7 +632,7 @@ function main(;init="heuristic")
             CSV.write(filename,output)
             info("solution saved at $filename")
         end
-        if non_improving_rounds > 20
+        if non_improving_rounds > 100
             warn("no improvements in $non_improving_rounds round, terminating")
             break
         end
@@ -666,10 +691,9 @@ function sample_mixed(sol,current_happiness; n_kids=20, threshold_cutoff=1.)
 
     # threshold_cutoff=.7
     sorted_single_kids = convert(Array{Int},intersect(sorted_ix-1, SINGLE_INDEX))
-    # k = findfirst(x -> x >= 1., current_happiness[sorted_single_kids+1,1] )
     # k = findfirst(index(x) --> x >= 1., current_happiness[sorted_single_kids+1,1] )
     # threshold_cutoff=.7
-    threshold = findfirst(current_happiness[sorted_single_kids+1,1], threshold_cutoff)
+    threshold = findfirst(current_happiness[sorted_single_kids+1,1], round(threshold_cutoff,2))
     # current_happiness[sorted_single_kids[k-5:k+5]+1,:]
     # current_happiness[sorted_single_kids+1,:]
     # sol[sorted_single_kids[1:threshold-1]+1,1]
@@ -682,28 +706,76 @@ function sample_mixed(sol,current_happiness; n_kids=20, threshold_cutoff=1.)
     # sample1 = StatsBase.sample(sorted_single_ix[1:convert(Int,round(length(sorted_single_kids) * threshold))],Int(n_kids/2))
     # sample2 = StatsBase.sample(sorted_single_ix[convert(Int,round(length(sorted_single_kids) * threshold))+1:end],Int(n_kids/2))
 
-    sample1 = StatsBase.sample(sol[sorted_single_kids[1:threshold-1]+1,1],min(Int(n_kids/2),threshold), replace=false)
-    sample2 = StatsBase.sample(sol[sorted_single_kids[threshold:end]+1,1],Int(n_kids/2), replace=false)
-
+    sample1 = StatsBase.sample(sol[sorted_single_kids[1:threshold]+1,1],min(floor(Int,n_kids/2),threshold), replace=false)
+    sample2 = StatsBase.sample(sol[sorted_single_kids[threshold+1:end]+1,1],floor(Int,n_kids/2), replace=false)
 
     # current_happiness[sample1+1,:]
     # sol[sample1+1,:]
     # current_happiness[sample_kids+1,:]
     # sol[sample1,:]
 
-
-    # current_happiness[[sorted_ix<100000]]
-    # current_happiness[sample_kids1+1,:]
-
-    # sample_kids1 = get_feasible_slice_singles(
-    #     sol[sorted_ix[1:convert(Int,N_CHILDREN * threshold)],:];
-    #     n_kids=Int(n_kids/2))
-    # sample_kids2 = get_feasible_slice_singles(
-    #     sol[sorted_ix[convert(Int,N_CHILDREN * threshold)+1:N_CHILDREN],:];
-    #     n_kids=Int(n_kids/2))
     sample_kids = [sample1;sample2]
     return sample_kids
 end
+
+
+
+function sample_mixed_all(sol, current_happiness; n_kids=20, threshold_cutoff=1.)
+    # sample_gifts = choose_gifts(sample_size=n_kids)
+
+    sorted_ix = sortperm(current_happiness[:,1])
+    # current_happiness[sorted_ix,:]
+    # sol[sorted_ix,:]
+
+
+    # threshold_cutoff=.7
+    sorted_kids = convert(Array{Int},sorted_ix-1)
+    # current_happiness[sorted_kids+1,:]
+
+    family_ids = []
+    for i in sorted_kids
+        if i < TRIPLETS
+            id = trunc(Int,i/3.)
+        elseif i < TWINS + TRIPLETS
+            id = trunc(Int,i/2.)
+        else
+            id = i
+        end
+        family_ids = append!(family_ids, id)
+    end
+
+
+    family_ids = unique(family_ids)
+
+
+
+
+    # k = findfirst(x -> x >= 1., current_happiness[sorted_single_kids+1,1] )
+    # k = findfirst(index(x) --> x >= 1., current_happiness[sorted_single_kids+1,1] )
+    # threshold_cutoff=.7
+    threshold = findfirst(current_happiness[sorted_single_kids+1,1], round(threshold_cutoff,2))
+
+    # current_happiness[sorted_single_kids[k-5:k+5]+1,:]
+    # current_happiness[sorted_single_kids+1,:]
+    # sol[sorted_single_kids[1:threshold-1]+1,1]
+    # current_happiness[sorted_single_kids[1:threshold-1]+1,1]
+
+    # current_happiness[sorted_single_ix[1:convert(Int,round(length(sorted_single_ix) * threshold))]+1,:]
+
+    # length(current_happiness[sorted_single_kids[1:threshold-1]+1,:])
+    # current_happiness[sorted_single_kids[threshold:end]+1,:]
+    # sample1 = StatsBase.sample(sorted_single_ix[1:convert(Int,round(length(sorted_single_kids) * threshold))],Int(n_kids/2))
+    # sample2 = StatsBase.sample(sorted_single_ix[convert(Int,round(length(sorted_single_kids) * threshold))+1:end],Int(n_kids/2))
+
+    sample1 = StatsBase.sample(sol[sorted_single_kids[1:threshold]+1,1],min(floor(Int,n_kids/2),threshold), replace=false)
+    sample2 = StatsBase.sample(sol[sorted_single_kids[threshold:end]+1,1],floor(Int,n_kids/2), replace=false)
+
+
+    sample_kids = [sample1;sample2]
+    return sample_kids
+end
+
+
 
 # addprocs(6)
 main()

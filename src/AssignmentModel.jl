@@ -66,18 +66,26 @@ function solve_model(
         cost::Array{Float64,2}, gifts::Array{Int64,1};
         triplets::Array{Any,1}=[], twins::Array{Any,1}=[])
 
+    dim = size(cost)[1]
+
+
 
     if (length(triplets) <=0 ) & (length(twins) <= 0)
         solver = ClpSolver()
+        model_type = "LP"
     else
-        solver = CbcSolver(sec=30)
+        solver = CbcSolver(sec=300)
+        model_type = "MIP"
     end
-    
+
     # solver = ClpSolver()
     m = Model(solver=solver)
-    dim = size(cost)[1]
 
-    @variable(m, x[1:dim, 1:dim]>=0, Bin)
+    if model_type == "LP"
+        @variable(m, 0<=x[1:dim, 1:dim]<=1)
+    elseif model_type == "MIP"
+        @variable(m, x[1:dim, 1:dim], Bin)
+    end
 
     @constraints m begin
         # Constraint 1 - Only one value appears in each cell
@@ -109,6 +117,7 @@ function solve_model(
 
     # Solve it
     status = solve(m)
+    # println("objective value: $(getobjectivevalue(m))")
 
     # Check solution
     if status == :Infeasible

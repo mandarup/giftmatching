@@ -57,7 +57,9 @@ function check_feas(output)
         # println("$index:$triplet1, $(index+1):$triplet2, $(index+2):$triplet3")
         #throw(AssertionError("$(triplet1[1]) == $(triplet2[1]) and $(triplet2[1]) == $(triplet3[1])"))
         if (triplet1[1] != triplet2[1]) | (triplet2[1] != triplet3[1])
+            warn("infeasible triplet assignemnt")
             return false
+
         end
     end
 
@@ -69,6 +71,20 @@ function check_feas(output)
         twin2 = output[index+1,2]
         #println("$index:$twin1, $(index+1):$twin2")
         if (twin1[1] != twin2[1])
+            warn("infeasible twin assignemnt")
+            return false
+
+        end
+    end
+
+    gift_counts = fill!(Array{Int64,1}(N_GIFT_TYPE), 0) #Dict(v=>0 for (k,v) in gift_assignment )
+    tic()
+    for kid in 0:N_CHILDREN-1
+        gift = output[kid+1,2]
+        gift_counts[gift+1] += 1
+        if gift_counts[gift+1] > N_GIFT_QUANTITY
+            warn("infeasible gift quantity assignement")
+            # throw(AssertionError("quantity for $gift==$(gift_counts[gift]) >=$N_GIFT_QUANTITY"))
             return false
         end
     end

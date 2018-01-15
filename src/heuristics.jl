@@ -249,7 +249,7 @@ function heuristic_greedy(gift_pref)
             throw(output[i,:])
         end
     end
-    println(gift_count_test)
+    # println(gift_count_test)
 
     return output
 end
